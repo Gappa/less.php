@@ -2172,6 +2172,23 @@ $g = intval( $g );
 		}
 	}
 
+	private function parseContainer() {
+		if ( $this->MatchReg( '/\\G@container/' ) ) {
+			$this->save();
+
+			$features = $this->parseMediaFeatures();
+			$rules = $this->parseBlock();
+
+			if ( $rules === null ) {
+				$this->restore();
+				return;
+			}
+
+			$this->forget();
+			return new Less_Tree_Container( $rules, $features, $this->pos, $this->env->currentFileInfo );
+		}
+	}
+
 	//
 	// A CSS Directive
 	//
@@ -2189,7 +2206,7 @@ $g = intval( $g );
 		$hasExpression = false;
 		$hasUnknown = false;
 
-		$value = $this->parseImport() ?? $this->parseMedia();
+		$value = $this->parseImport() ?? $this->parseMedia() ?? $this->parseContainer();
 		if ( $value ) {
 			return $value;
 		}
