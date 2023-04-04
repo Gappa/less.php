@@ -14,6 +14,7 @@ class Less_Tree_Selector extends Less_Tree {
 	public $currentFileInfo = [];
 	public $isReferenced;
 	public $mediaEmpty;
+	public $containerEmpty;
 
 	public $elements_len = 0;
 

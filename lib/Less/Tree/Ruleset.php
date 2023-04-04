@@ -18,6 +18,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 	public $firstRoot;
 	public $type = 'Ruleset';
 	public $multiMedia;
+	public $multiContainer;
 	public $allExtends;
 
 	public $ruleset_id;
@@ -85,6 +86,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		}
 
 		$mediaBlockCount = count( $env->mediaBlocks );
+		$containerBlockCount = count( $env->containerBlocks );
 
 		// Evaluate mixin calls.
 		$this->EvalMixinCalls( $ruleset, $env, $rsRuleCnt );
@@ -127,6 +129,13 @@ class Less_Tree_Ruleset extends Less_Tree {
 			$len = count( $env->mediaBlocks );
 			for ( $i = $mediaBlockCount; $i < $len; $i++ ) {
 				$env->mediaBlocks[$i]->bubbleSelectors( $ruleset->selectors );
+			}
+		}
+
+		if ( $containerBlockCount ) {
+			$len = count( $env->containerBlocks );
+			for ( $i = $containerBlockCount; $i < $len; $i++ ) {
+				$env->containerBlocks[$i]->bubbleSelectors( $ruleset->selectors );
 			}
 		}
 
@@ -380,6 +389,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 			$class = get_class( $rule );
 			if (
 				( $class === 'Less_Tree_Media' ) ||
+				( $class === 'Less_Tree_Container' ) ||
 				( $class === 'Less_Tree_Directive' ) ||
 				( $this->root && $class === 'Less_Tree_Comment' ) ||
 				( $rule instanceof Less_Tree_Ruleset && $rule->rules )

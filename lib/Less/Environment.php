@@ -29,7 +29,17 @@ class Less_Environment {
 	/**
 	 * @var array
 	 */
+	public $containerBlocks = [];
+
+	/**
+	 * @var array
+	 */
 	public $mediaPath = [];
+
+	/**
+	 * @var array
+	 */
+	public $containerPath = [];
 
 	public static $parensStack = 0;
 
