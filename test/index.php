@@ -1,6 +1,6 @@
 <?php
 
-define( 'phpless_start_time', microtime() );
+define( 'PHPLESS_START_TIME', microtime() );
 
 error_reporting( E_ALL );
 ini_set( 'display_errors', 1 );
@@ -15,7 +15,6 @@ require_once $dir . '/lessc.inc.php';
 
 class ParserTest {
 
-	// options
 	var $compress = false;
 	var $dir;
 	var $test_dirs = [ 'lessjs','bootstrap3' ];
@@ -387,7 +386,7 @@ class ParserTest {
 		echo '<fieldset><legend>Memory Peak</legend>' . self::FormatBytes( $memory ) . ' (' . number_format( $memory ) . ')</fieldset>';
 
 		// time
-		echo '<fieldset><legend>Time (PHP):</legend>' . self::microtime_diff( phpless_start_time, microtime() ) . '</fieldset>';
+		echo '<fieldset><legend>Time (PHP):</legend>' . self::microtime_diff( PHPLESS_START_TIME, microtime() ) . '</fieldset>';
 		echo '<fieldset><legend>Time (Request)</legend>' . self::microtime_diff( $_SERVER['REQUEST_TIME'], microtime() ) . '</fieldset>';
 
 		echo '</div>';
