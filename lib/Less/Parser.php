@@ -332,7 +332,7 @@ class Less_Parser {
 		}
 
 		$r = intval( $r );
-$g = intval( $g );
+		$g = intval( $g );
 		$b = intval( $b );
 
 		$r = dechex( $r < 0 ? 0 : ( $r > 255 ? 255 : $r ) );
@@ -710,22 +710,22 @@ $g = intval( $g );
 		}
 	}
 
-	static function AddParsedFile( $file ) {
+	public static function AddParsedFile( $file ) {
 		self::$imports[] = $file;
 	}
 
-	static function AllParsedFiles() {
+	public static function AllParsedFiles() {
 		return self::$imports;
 	}
 
 	/**
 	 * @param string $file
 	 */
-	static function FileParsed( $file ) {
+	public static function FileParsed( $file ) {
 		return in_array( $file, self::$imports );
 	}
 
-	function save() {
+	public function save() {
 		$this->saveStack[] = $this->pos;
 	}
 
@@ -1288,7 +1288,7 @@ $g = intval( $g );
 	 *
 	 * @return Less_Tree_UnicodeDescriptor|null
 	 */
-	function parseUnicodeDescriptor() {
+	public function parseUnicodeDescriptor() {
 		// Optimization: Hardcode first char, to avoid MatchReg() cost for common case
 		$char = $this->input[$this->pos] ?? null;
 		if ( $char !== 'U' ) {
@@ -1366,7 +1366,7 @@ $g = intval( $g );
 	//
 	// extend syntax - used to extend selectors
 	//
-	function parseExtend( $isRule = false ) {
+	public function parseExtend( $isRule = false ) {
 		$index = $this->pos;
 		$extendList = [];
 
@@ -1379,7 +1379,8 @@ $g = intval( $g );
 			$elements = [];
 			while ( true ) {
 				$option = $this->MatchReg( '/\\G(all)(?=\s*(\)|,))/' );
-				if ( $option ) { break;
+				if ( $option ) {
+					break;
 				}
 				$e = $this->parseElement();
 				if ( !$e ) {
@@ -2062,7 +2063,7 @@ $g = intval( $g );
 		}
 	}
 
-	function parseAnonymousValue() {
+	public function parseAnonymousValue() {
 		$match = $this->MatchReg( '/\\G([^@+\/\'"*`(;{}-]*);/' );
 		if ( $match ) {
 			return new Less_Tree_Anonymous( $match[1] );
@@ -2126,7 +2127,8 @@ $g = intval( $g );
 						break;
 				}
 				$options[$optionName] = $value;
-				if ( !$this->MatchChar( ',' ) ) { break;
+				if ( !$this->MatchChar( ',' ) ) {
+					break;
 				}
 			}
 		}while ( $optionName );
@@ -2390,7 +2392,7 @@ $g = intval( $g );
 	 *
 	 * @return Less_Tree_Operation|null
 	 */
-	function parseMultiplication() {
+	public function parseMultiplication() {
 		$return = $m = $this->parseOperand();
 		if ( $return ) {
 			while ( true ) {
@@ -2411,7 +2413,8 @@ $g = intval( $g );
 
 				$a = $this->parseOperand();
 
-				if ( !$a ) { break;
+				if ( !$a ) {
+					break;
 				}
 
 				$m->parensInOp = true;
