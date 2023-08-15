@@ -13,7 +13,6 @@ class Less_Tree_Mixin_Definition extends Less_Tree_Ruleset {
 	public $frames		= [];
 	public $condition;
 	public $variadic;
-	public $type = 'MixinDefinition';
 
 	// less.js : /lib/less/tree/mixin.js : tree.mixin.Definition
 	public function __construct( $name, $params, $rules, $condition, $variadic = false, $frames = [] ) {
@@ -86,7 +85,8 @@ class Less_Tree_Mixin_Definition extends Less_Tree_Ruleset {
 		$argIndex = 0;
 		foreach ( $params as $i => $param ) {
 
-			if ( isset( $evaldArguments[$i] ) ) { continue;
+			if ( isset( $evaldArguments[$i] ) ) {
+				continue;
 			}
 
 			$arg = null;

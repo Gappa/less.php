@@ -4,7 +4,6 @@
  */
 class Less_Tree_Value extends Less_Tree {
 
-	public $type = 'Value';
 	public $value;
 
 	/**
@@ -33,7 +32,7 @@ class Less_Tree_Value extends Less_Tree {
 	/**
 	 * @see Less_Tree::genCSS
 	 */
-	function genCSS( $output ) {
+	public function genCSS( $output ) {
 		$len = count( $this->value );
 		for ( $i = 0; $i < $len; $i++ ) {
 			$this->value[$i]->genCSS( $output );

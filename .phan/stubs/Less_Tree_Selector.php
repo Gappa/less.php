@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * @method int match($other)
+ */
 class Less_Tree_Selector extends Less_Tree {
 	public $elements;
 	public $condition;
@@ -7,7 +9,6 @@ class Less_Tree_Selector extends Less_Tree {
 	public $_css;
 	public $index;
 	public $evaldCondition = false;
-	public $type = 'Selector';
 	public $currentFileInfo = [];
 	public $isReferenced;
 	public $mediaEmpty;
@@ -27,8 +28,9 @@ class Less_Tree_Selector extends Less_Tree {
 	public function createDerived( $elements, $extendList = null, $evaldCondition = null ) {
 	}
 
-	public function match( $other ) {
-	}
+	// https://github.com/phan/phan/issues/4751
+	// public function match( $other ) {
+	// }
 
 	public function CacheElements() {
 	}

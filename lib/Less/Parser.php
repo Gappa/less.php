@@ -239,23 +239,23 @@ class Less_Parser {
 		$variables = [];
 
 		$not_variable_type = [
-			'Comment',   // this include less comments ( // ) and css comments (/* */)
-			'Import',    // do not search variables in included files @import
-			'Ruleset',   // selectors (.someclass, #someid, …)
-			'Operation', //
+			Less_Tree_Comment::class,   // this include less comments ( // ) and css comments (/* */)
+			Less_Tree_Import::class,    // do not search variables in included files @import
+			Less_Tree_Ruleset::class,   // selectors (.someclass, #someid, …)
+			Less_Tree_Operation::class,
 		];
 
 		// @TODO run compilation if not runned yet
 		foreach ( $this->rules as $key => $rule ) {
-			if ( in_array( $rule->type, $not_variable_type ) ) {
+			if ( in_array( get_class( $rule ), $not_variable_type ) ) {
 				continue;
 			}
 
-			// Note: it seems rule->type is always Rule when variable = true
-			if ( $rule->type == 'Rule' && $rule->variable ) {
+			// Note: it seems $rule is always Less_Tree_Rule when variable = true
+			if ( $rule instanceof Less_Tree_Rule && $rule->variable ) {
 				$variables[$rule->name] = $this->getVariableValue( $rule );
 			} else {
-				if ( $rule->type == 'Comment' ) {
+				if ( $rule instanceof Less_Tree_Comment ) {
 					$variables[] = $this->getVariableValue( $rule );
 				}
 			}
@@ -322,7 +322,7 @@ class Less_Parser {
 			case Less_Tree_Import::class:
 			case Less_Tree_Ruleset::class:
 			default:
-				throw new Exception( "type missing in switch/case getVariableValue for " . $var->type );
+				throw new Exception( "type missing in switch/case getVariableValue for " . get_class( $var ) );
 		}
 	}
 
@@ -332,7 +332,7 @@ class Less_Parser {
 		}
 
 		$r = intval( $r );
-$g = intval( $g );
+		$g = intval( $g );
 		$b = intval( $b );
 
 		$r = dechex( $r < 0 ? 0 : ( $r > 255 ? 255 : $r ) );
@@ -710,22 +710,22 @@ $g = intval( $g );
 		}
 	}
 
-	static function AddParsedFile( $file ) {
+	public static function AddParsedFile( $file ) {
 		self::$imports[] = $file;
 	}
 
-	static function AllParsedFiles() {
+	public static function AllParsedFiles() {
 		return self::$imports;
 	}
 
 	/**
 	 * @param string $file
 	 */
-	static function FileParsed( $file ) {
+	public static function FileParsed( $file ) {
 		return in_array( $file, self::$imports );
 	}
 
-	function save() {
+	public function save() {
 		$this->saveStack[] = $this->pos;
 	}
 
@@ -840,14 +840,8 @@ $g = intval( $g );
 	 */
 	public function skipWhitespace( $length ) {
 		$this->pos += $length;
-
-		for ( ; $this->pos < $this->input_len; $this->pos++ ) {
-			$c = $this->input[$this->pos];
-
-			if ( ( $c !== "\n" ) && ( $c !== "\r" ) && ( $c !== "\t" ) && ( $c !== ' ' ) ) {
-				break;
-			}
-		}
+		// Optimization: Skip over irrelevant chars without slow loop
+		$this->pos += strspn( $this->input, "\n\r\t ", $this->pos );
 	}
 
 	/**
@@ -1288,7 +1282,7 @@ $g = intval( $g );
 	 *
 	 * @return Less_Tree_UnicodeDescriptor|null
 	 */
-	function parseUnicodeDescriptor() {
+	public function parseUnicodeDescriptor() {
 		// Optimization: Hardcode first char, to avoid MatchReg() cost for common case
 		$char = $this->input[$this->pos] ?? null;
 		if ( $char !== 'U' ) {
@@ -1366,7 +1360,7 @@ $g = intval( $g );
 	//
 	// extend syntax - used to extend selectors
 	//
-	function parseExtend( $isRule = false ) {
+	public function parseExtend( $isRule = false ) {
 		$index = $this->pos;
 		$extendList = [];
 
@@ -1379,7 +1373,8 @@ $g = intval( $g );
 			$elements = [];
 			while ( true ) {
 				$option = $this->MatchReg( '/\\G(all)(?=\s*(\)|,))/' );
-				if ( $option ) { break;
+				if ( $option ) {
+					break;
 				}
 				$e = $this->parseElement();
 				if ( !$e ) {
@@ -2062,7 +2057,7 @@ $g = intval( $g );
 		}
 	}
 
-	function parseAnonymousValue() {
+	public function parseAnonymousValue() {
 		$match = $this->MatchReg( '/\\G([^@+\/\'"*`(;{}-]*);/' );
 		if ( $match ) {
 			return new Less_Tree_Anonymous( $match[1] );
@@ -2126,7 +2121,8 @@ $g = intval( $g );
 						break;
 				}
 				$options[$optionName] = $value;
-				if ( !$this->MatchChar( ',' ) ) { break;
+				if ( !$this->MatchChar( ',' ) ) {
+					break;
 				}
 			}
 		}while ( $optionName );
@@ -2390,7 +2386,7 @@ $g = intval( $g );
 	 *
 	 * @return Less_Tree_Operation|null
 	 */
-	function parseMultiplication() {
+	public function parseMultiplication() {
 		$return = $m = $this->parseOperand();
 		if ( $return ) {
 			while ( true ) {
@@ -2411,7 +2407,8 @@ $g = intval( $g );
 
 				$a = $this->parseOperand();
 
-				if ( !$a ) { break;
+				if ( !$a ) {
+					break;
 				}
 
 				$m->parensInOp = true;

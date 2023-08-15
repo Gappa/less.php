@@ -16,7 +16,6 @@ class Less_Tree_Ruleset extends Less_Tree {
 	public $allowImports;
 	public $paths;
 	public $firstRoot;
-	public $type = 'Ruleset';
 	public $multiMedia;
 	public $multiContainer;
 	public $allExtends;
@@ -253,7 +252,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		return $ruleset;
 	}
 
-	function evalImports( $env ) {
+	public function evalImports( $env ) {
 		$rules_len = count( $this->rules );
 		for ( $i = 0; $i < $rules_len; $i++ ) {
 			$rule = $this->rules[$i];
@@ -274,7 +273,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		}
 	}
 
-	function makeImportant() {
+	public function makeImportant() {
 		$important_rules = [];
 		foreach ( $this->rules as $rule ) {
 			if ( $rule instanceof Less_Tree_Rule || $rule instanceof Less_Tree_Ruleset || $rule instanceof Less_Tree_NameValue ) {
@@ -304,7 +303,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		return true;
 	}
 
-	function resetCache() {
+	public function resetCache() {
 		$this->_rulesets = null;
 		$this->_variables = null;
 		$this->lookups = [];
@@ -388,13 +387,10 @@ class Less_Tree_Ruleset extends Less_Tree {
 		$ruleNodes = [];
 		$rulesetNodes = [];
 		foreach ( $this->rules as $rule ) {
-
-			$class = get_class( $rule );
-			if (
-				( $class === 'Less_Tree_Media' ) ||
-				( $class === 'Less_Tree_Container' ) ||
-				( $class === 'Less_Tree_Directive' ) ||
-				( $this->root && $class === 'Less_Tree_Comment' ) ||
+			if ( $rule instanceof Less_Tree_Media ||
+				$rule instanceof Less_Tree_Directive ||
+				$rule instanceof Less_Tree_Container ||
+				( $this->root && $rule instanceof Less_Tree_Comment ) ||
 				( $rule instanceof Less_Tree_Ruleset && $rule->rules )
 			) {
 				$rulesetNodes[] = $rule;
@@ -468,7 +464,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		}
 	}
 
-	function markReferenced() {
+	public function markReferenced() {
 		if ( !$this->selectors ) {
 			return;
 		}
@@ -721,7 +717,7 @@ class Less_Tree_Ruleset extends Less_Tree {
 		return $newSelectorPath;
 	}
 
-	function mergeElementsOnToSelectors( $elements, &$selectors ) {
+	public function mergeElementsOnToSelectors( $elements, &$selectors ) {
 		if ( !$elements ) {
 			return;
 		}
