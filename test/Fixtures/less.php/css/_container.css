@@ -1,0 +1,17 @@
+.test {
+  container-type: inline-size;
+  container-name: test;
+}
+.test__items {
+  --per-row: 4;
+}
+@container test (max-width: 800px) {
+  .test__items {
+    --per-row: 2;
+  }
+}
+@container test (max-width: 400px) {
+  .test__items {
+    --per-row: 1;
+  }
+}
