@@ -38,7 +38,6 @@ class Less_Environment {
 
 	public static $lastRule = false;
 
-	public static $_outputMap;
 	public static $_noSpaceCombinators;
 
 	public static $mixin_stack = 0;
@@ -61,40 +60,6 @@ class Less_Environment {
 			' ' => true,
 			'|' => true
 		];
-
-		if ( Less_Parser::$options['compress'] ) {
-
-			self::$_outputMap = [
-				','	=> ',',
-				': ' => ':',
-				''  => '',
-				' ' => ' ',
-				':' => ' :',
-				'+' => '+',
-				'~' => '~',
-				'>' => '>',
-				'|' => '|',
-				'^' => '^',
-				'^^' => '^^'
-			];
-
-		} else {
-
-			self::$_outputMap = [
-				','	=> ', ',
-				': ' => ': ',
-				''  => '',
-				' ' => ' ',
-				':' => ' :',
-				'+' => ' + ',
-				'~' => ' ~ ',
-				'>' => ' > ',
-				'|' => '|',
-				'^' => ' ^ ',
-				'^^' => ' ^^ '
-			];
-
-		}
 	}
 
 	public function copyEvalEnv( $frames = [] ) {
