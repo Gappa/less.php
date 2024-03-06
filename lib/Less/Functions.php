@@ -547,10 +547,10 @@ class Less_Functions {
 		$replacement = ( $replacement instanceof Less_Tree_Quoted ) ?
 			$replacement->value : $replacement->toCSS();
 
-		$result = preg_replace( $expr, $replacement, $result, 1 );
-
 		if ( $flags && $flags->value && preg_match( '/g/', $flags->value ) ) {
 			$result = preg_replace( $expr, $replacement, $result );
+		} else {
+			$result = preg_replace( $expr, $replacement, $result, 1 );
 		}
 
 		if ( $string instanceof Less_Tree_Quoted ) {
@@ -775,7 +775,7 @@ class Less_Functions {
 		foreach ( $order as $a ) {
 			$args[] = $a->toCSS();
 		}
-		return new Less_Tree_Anonymous( ( $isMin ? 'min(' : 'max(' ) . implode( Less_Environment::$_outputMap[','], $args ) . ')' );
+		return new Less_Tree_Anonymous( ( $isMin ? 'min(' : 'max(' ) . implode( ( Less_Parser::$options['compress'] ? ',' : ', ' ), $args ) . ')' );
 	}
 
 	public function min( ...$args ) {

@@ -32,17 +32,20 @@ class Less_Environment {
 	/** @var Less_Tree_Container[] */
 	public $containerPath = [];
 
+	/** @var string[] */
+	public $imports = [];
+
 	public static $parensStack = 0;
 
 	public static $tabLevel = 0;
 
 	public static $lastRule = false;
 
-	public static $_outputMap;
+	public static $_noSpaceCombinators;
 
 	public static $mixin_stack = 0;
 
-	public static $mathOn = true;
+	public $strictMath = false;
 
 	/**
 	 * @var array
@@ -55,39 +58,27 @@ class Less_Environment {
 		self::$lastRule = false;
 		self::$mixin_stack = 0;
 
-		if ( Less_Parser::$options['compress'] ) {
+		self::$_noSpaceCombinators = [
+			'' => true,
+			' ' => true,
+			'|' => true
+		];
+	}
 
-			self::$_outputMap = [
-				','	=> ',',
-				': ' => ':',
-				''  => '',
-				' ' => ' ',
-				':' => ' :',
-				'+' => '+',
-				'~' => '~',
-				'>' => '>',
-				'|' => '|',
-				'^' => '^',
-				'^^' => '^^'
-			];
+	/**
+	 * @param string $file
+	 * @return void
+	 */
+	public function addParsedFile( $file ) {
+		$this->imports[] = $file;
+	}
 
-		} else {
-
-			self::$_outputMap = [
-				','	=> ', ',
-				': ' => ': ',
-				''  => '',
-				' ' => ' ',
-				':' => ' :',
-				'+' => ' + ',
-				'~' => ' ~ ',
-				'>' => ' > ',
-				'|' => '|',
-				'^' => ' ^ ',
-				'^^' => ' ^^ '
-			];
-
-		}
+	/**
+	 * @param string $file
+	 * @return bool
+	 */
+	public function isFileParsed( $file ) {
+		return in_array( $file, $this->imports );
 	}
 
 	public function copyEvalEnv( $frames = [] ) {
@@ -100,11 +91,8 @@ class Less_Environment {
 	 * @return bool
 	 * @see Eval.prototype.isMathOn in less.js 3.0.0 https://github.com/less/less.js/blob/v3.0.0/dist/less.js#L1007
 	 */
-	public static function isMathOn() {
-		if ( !self::$mathOn ) {
-			return false;
-		}
-		return !Less_Parser::$options['strictMath'] || self::$parensStack;
+	public function isMathOn() {
+		return $this->strictMath ? (bool)self::$parensStack : true;
 	}
 
 	/**

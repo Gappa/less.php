@@ -17,80 +17,54 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 		],
 
 		'lessjs-2.5.3' => [
-			// Permanently disabled: not supported.
-			'plugin' => true,
-			'javascript' => true,
-
-			// Temporary disabled; Bug logged here T352830
-			// If T352866 is fixed, this is should also be resolved
-			'variables' => true,
-
-			// TODO: This needs a task
-			'css-escapes' => true,
-
-			// Temporary disabled; Bug logged here T352867
-			'mixins-guards' => true,
-
-			// Temporary disabled; Bug logged here T352897
-			'mixin-args' => true,
-
-			// Temporary disabled; Bug logged here T352862
-			'css-3' => true,
-			'import-reference' => true,
-
-			// TODO; Create Task for import-interpolation
-			'import-interpolation' => true,
-
-			// Temporary disabled; Bug logged here T352897
-			'mixins-args' => true,
-
-			// Temporary disabled: Bug logged here T352911
-			'whitespace' => true,
-
-			// Temporary disabled: After fixing T352911 & T352866
-			// This might be resolved
-			'css' => true,
-
-			 // Temporary disabled: Bug logged here T353146
-			'import' => true,
-
-			// Temporary disabled:Bug logged here T353147
-			'urls' => true,
-
-			// Temporary disabled; Bug logged T353131 & T353132
-			'comments' => true,
-			'comments2' => true,
-
-			// Temporary disabled; Bug logged T353144
-			'css-guards' => true,
-
+			// Permanently disabled
+			'plugin' => true, // Not supported.
+			'javascript' => true, // Not supported.
 			// We moved this to Less.php parens.less test case because
 			// our current version of Less.php suports Less.js v3.x parens
 			// behaviour of doing maths in parentheses by default
 			'parens' => true,
 
-			// Temporary disabled; Bug logged T353143
-			'detached-rulesets' => true,
+			// Temporary disabled
+			'comments' => true, // T353131 & T353132
+			'comments2' => true, // T353131 & T353132
+			'css' => true, // T352911 & T352866
+			'css-guards' => true, // T353144
+			'detached-rulesets' => true, // T353143
+			'import' => true, // T353146
+			'import-interpolation' => true, // TODO
+			'import-reference' => true, // T352862
+			'mixin-args' => true, // T352897
+			'mixins-args' => true, // T352897
+			'mixins-guards' => true, // T352867
+			'urls' => true, // T353147
+			'variables' => true, // T352830, T352866
 		]
 	];
 
 	public static function provideFixtures() {
 		foreach ( [
-			// 'lessjs' => 'expected',
-			'less.php' => 'css',
-			'bug-reports' => 'css',
-			'lessjs-2.5.3' => 'expected'
-		] as $group => $expectedSubdir ) {
-			$expectedDir = self::getFixtureDir() . "/$group/$expectedSubdir";
-			if ( !is_dir( $expectedDir ) ) {
+			'less.php',
+			'bug-reports',
+			'lessjs-2.5.3',
+		] as $group ) {
+			$outputDir = self::getFixtureDir() . "/$group/css";
+			if ( !is_dir( $outputDir ) ) {
 				// Check because glob() tolerances non-existence
-				throw new RuntimeException( "Directory missing: $expectedDir" );
+				throw new RuntimeException( "Directory missing: $outputDir" );
 			}
-			foreach ( glob( "$expectedDir/*.css" ) as $cssFile ) {
+			foreach ( glob( "$outputDir/*.css" ) as $cssFile ) {
+				$name = basename( $cssFile, '.css' );
 				// From /Fixtures/lessjs/css/something.css
 				// into /Fixtures/lessjs/less/name.less
-				$name = basename( $cssFile, '.css' );
 				$lessFile = dirname( dirname( $cssFile ) ) . '/less/' . $name . '.less';
+				$overrideFile = dirname( dirname( $cssFile ) ) . '/override/' . $name . '.css';
+				if ( file_exists( $overrideFile ) ) {
+					if ( file_get_contents( $overrideFile ) === file_get_contents( $cssFile ) ) {
+						print "WARNING: Redundant override for $overrideFile\n";
+					}
+					$cssFile = $overrideFile;
+				}
 				if ( self::KNOWN_FAILURE[ $group ][ $name ] ?? false ) {
 					continue;
 				}
