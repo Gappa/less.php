@@ -30,7 +30,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			'comments2' => true, // T353131 & T353132
 			'css' => true, // T352911 & T352866
 			'css-guards' => true, // T353144
-			'detached-rulesets' => true, // T353143
 			'import' => true, // T353146
 			'import-reference' => true, // T352862
 			'mixin-args' => true, // T352897
@@ -41,6 +40,48 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 		],
 		'lessjs-2.5.3/include-path' => [
 			'include-path' => true, // T353147, data-uri()
+		],
+		'lessjs-3.13.1' => [
+			// Permanently disabled
+			'plugin' => true, // Not supported
+			'plugin-preeval' => true, // Not Supported
+			'plugin-module' => true, // Not Supported
+			'javascript' => true, // Not supported.
+
+			'calc' => true, // New Feature
+
+			'variables' => true,
+			'functions' => true,
+			'functions-each' => true,
+			'import-reference-issues' => true,
+			'detached-rulesets' => true,
+			'import-reference' => true,
+			'import-module' => true,
+			'extend-selector' => true,
+			'mixins-guards' => true,
+			'merge' => true,
+			'css-3' => true,
+			'colors' => true,
+			'css-grid' => true,
+			'urls' => true,
+			'operations' => true,
+			'comments2' => true,
+			'comments' => true,
+			'import-remote' => true,
+			'import' => true,
+			'css-escapes' => true,
+			'css-guards' => true,
+			'parse-interpolation' => true,
+			'selectors' => true,
+			'property-accessors' => true,
+			'property-name-interp' => true,
+			'permissive-parse' => true,
+		],
+		'lessjs-3.13.1/include-path' => [
+			'include-path' => true,
+		],
+		'lessjs-3.13.1/compression' => [
+			'compression' => true,
 		],
 	];
 
