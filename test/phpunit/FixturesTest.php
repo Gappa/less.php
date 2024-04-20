@@ -17,9 +17,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 		],
 
 		'lessjs-2.5.3' => [
-			// Permanently disabled
-			'plugin' => true, // Not supported.
-			'javascript' => true, // Not supported.
 			// We moved this to Less.php parens.less test case because
 			// our current version of Less.php suports Less.js v3.x parens
 			// behaviour of doing maths in parentheses by default
@@ -28,7 +25,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			// Temporary disabled
 			'comments2' => true, // T353132
 			'css' => true, // T352911 & T352866
-			'css-guards' => true, // T353144
 			'import' => true, // T353146
 			'import-reference' => true, // T352862
 			'mixin-args' => true, // T352897
@@ -41,12 +37,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			'include-path' => true, // T353147, data-uri()
 		],
 		'lessjs-3.13.1' => [
-			// Permanently disabled
-			'plugin' => true, // Not supported
-			'plugin-preeval' => true, // Not Supported
-			'plugin-module' => true, // Not Supported
-			'javascript' => true, // Not supported.
-
 			'calc' => true, // New Feature
 
 			'variables' => true,
@@ -69,7 +59,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			'import-remote' => true,
 			'import' => true,
 			'css-escapes' => true,
-			'css-guards' => true,
 			'parse-interpolation' => true,
 			'selectors' => true,
 			'property-accessors' => true,
@@ -92,6 +81,7 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			$lessDir = $fixture['lessDir'];
 			$overrideDir = $fixture['overrideDir'] ?? null;
 			$options = $fixture['options'] ?? [];
+			$unsupported = $fixture['unsupported'] ?? [];
 			if ( !is_dir( $cssDir ) ) {
 				// Check because glob() tolerances non-existence
 				throw new RuntimeException( "Directory missing: $cssDir" );
@@ -106,10 +96,14 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 					}
 					$cssFile = $overrideFile;
 				}
-				if ( self::KNOWN_FAILURE[ $group ][ $name ] ?? false ) {
+				if ( in_array( $name, $unsupported ) ) {
 					continue;
 				}
-				yield "Fixtures/$group $name" => [ $cssFile, $lessFile, $options ];
+				$skipTestMessage = false;
+				if ( self::KNOWN_FAILURE[ $group ][ $name ] ?? false ) {
+					$skipTestMessage = 'Known failure, not yet supported.';
+				}
+				yield "Fixtures/$group $name" => [ $cssFile, $lessFile, $options, $skipTestMessage ];
 			}
 		}
 	}
@@ -117,7 +111,11 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 	/**
 	 * @dataProvider provideFixtures
 	 */
-	public function testFixture( $cssFile, $lessFile, $options ) {
+	public function testFixture( $cssFile, $lessFile, $options, $ifSetSkipTestMessage = false ) {
+		if ( $ifSetSkipTestMessage !== false ) {
+			$this->markTestSkipped( $ifSetSkipTestMessage );
+		}
+
 		$expectedCSS = trim( file_get_contents( $cssFile ) );
 
 		// Check with standard parser
