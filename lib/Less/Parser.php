@@ -860,11 +860,7 @@ class Less_Parser {
 	private function skipWhitespace( $length ) {
 		$this->pos += $length;
 
-		// we do not increment the $this->pos as upstream, because $this->pos is updated with
-		// comment length or by amount of whitespaces strsspn finds. What upstream does is ignores
-		// whitespaces, which makes the for loop keep iterating.
-		// phpcs:ignore Generic.CodeAnalysis.ForLoopShouldBeWhileLoop.CanSimplify
-		for ( ; $this->pos < $this->input_len; ) {
+		for ( ; $this->pos < $this->input_len; $this->pos++ ) {
 			$currentChar = $this->input[$this->pos];
 
 			if ( $this->autoCommentAbsorb && $currentChar === '/' ) {
@@ -881,28 +877,29 @@ class Less_Parser {
 					continue;
 				} elseif ( $nextChar === '*' ) {
 					$nextStarSlash = strpos( $this->input, "*/", $this->pos + 2 );
-					if ( $nextStarSlash ) {
+					if ( $nextStarSlash !== false ) {
 						$comment = [
+							'index' => $this->pos,
 							'text' => substr( $this->input, $this->pos, $nextStarSlash + 2 -
 								$this->pos ),
 							'isLineComment' => false,
-							'index' => $this->pos
 						];
+						$this->pos += strlen( $comment['text'] ) - 1;
 						$this->commentStore[] = $comment;
-						$this->pos += strlen( $comment['text'] );
 						continue;
 					}
 				}
 				break;
 			}
 
-			if ( $currentChar !== " " && $currentChar !== "\n"
-				&& $currentChar !== "\t" && $currentChar !== "\r" ) {
+			// Optimization: Skip over irrelevant chars without slow loop
+			$skip = strspn( $this->input, " \n\t\r", $this->pos );
+			if ( $skip ) {
+				$this->pos += $skip - 1;
+			}
+			if ( !$skip && $this->pos < $this->input_len ) {
 				break;
 			}
-
-			// Optimization: Skip over irrelevant chars without slow loop
-			$this->pos += strspn( $this->input, "\n\r\t ", $this->pos );
 		}
 	}
 
@@ -1036,7 +1033,9 @@ class Less_Parser {
 	/**
 	 * comments are collected by the main parsing mechanism and then assigned to nodes
 	 * where the current structure allows it
+	 *
 	 * @return Less_Tree_Comment|void
+	 * @see less-2.5.3.js#parsers.comment
 	 */
 	private function parseComment() {
 		$comment = array_shift( $this->commentStore );
@@ -1266,8 +1265,11 @@ class Less_Parser {
 	 */
 	private function parseEntitiesVariable() {
 		$index = $this->pos;
-		if ( $this->peekChar( '@' ) && ( $name = $this->matchReg( '/\\G@@?[\w-]+/' ) ) ) {
-			return new Less_Tree_Variable( $name, $index, $this->env->currentFileInfo );
+		if ( $this->peekChar( '@' ) ) {
+			$name = $this->matchReg( '/\\G@@?[\w-]+/' );
+			if ( $name ) {
+				return new Less_Tree_Variable( $name, $index, $this->env->currentFileInfo );
+			}
 		}
 	}
 
@@ -1279,8 +1281,11 @@ class Less_Parser {
 	private function parseEntitiesVariableCurly() {
 		$index = $this->pos;
 
-		if ( $this->input_len > ( $this->pos + 1 ) && $this->input[$this->pos] === '@' && ( $curly = $this->matchReg( '/\\G@\{([\w-]+)\}/' ) ) ) {
-			return new Less_Tree_Variable( '@' . $curly[1], $index, $this->env->currentFileInfo );
+		if ( $this->input_len > ( $this->pos + 1 ) && $this->input[$this->pos] === '@' ) {
+			$curly = $this->matchReg( '/\\G@\{([\w-]+)\}/' );
+			if ( $curly ) {
+				return new Less_Tree_Variable( '@' . $curly[1], $index, $this->env->currentFileInfo );
+			}
 		}
 	}
 
@@ -1294,8 +1299,11 @@ class Less_Parser {
 	 * @return Less_Tree_Color|null
 	 */
 	private function parseEntitiesColor() {
-		if ( $this->peekChar( '#' ) && ( $rgb = $this->matchReg( '/\\G#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/' ) ) ) {
-			return new Less_Tree_Color( $rgb[1], 1, null, $rgb[0] );
+		if ( $this->peekChar( '#' ) ) {
+			$rgb = $this->matchReg( '/\\G#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/' );
+			if ( $rgb ) {
+				return new Less_Tree_Color( $rgb[1], 1, null, $rgb[0] );
+			}
 		}
 	}
 
@@ -1388,8 +1396,11 @@ class Less_Parser {
 	//
 	// @see less-2.5.3.js#parsers.variable
 	private function parseVariable() {
-		if ( $this->peekChar( '@' ) && ( $name = $this->matchReg( '/\\G(@[\w-]+)\s*:/' ) ) ) {
-			return $name[1];
+		if ( $this->peekChar( '@' ) ) {
+			$name = $this->matchReg( '/\\G(@[\w-]+)\s*:/' );
+			if ( $name ) {
+				return $name[1];
+			}
 		}
 	}
 
@@ -1400,8 +1411,11 @@ class Less_Parser {
 	//
 	// @see less-2.5.3.js#parsers.rulesetCall
 	private function parseRulesetCall() {
-		if ( $this->peekChar( '@' ) && ( $name = $this->matchReg( '/\\G(@[\w-]+)\s*\(\s*\)\s*;/' ) ) ) {
-			return new Less_Tree_RulesetCall( $name[1] );
+		if ( $this->peekChar( '@' ) ) {
+			$name = $this->matchReg( '/\\G(@[\w-]+)\s*\(\s*\)\s*;/' );
+			if ( $name ) {
+				return new Less_Tree_RulesetCall( $name[1] );
+			}
 		}
 	}
 
@@ -1521,6 +1535,7 @@ class Less_Parser {
 		$expressionContainsNamed = null;
 		$name = null;
 		$returner = [ 'args' => [], 'variadic' => false ];
+		$expand = false;
 
 		$this->save();
 
@@ -1591,17 +1606,21 @@ class Less_Parser {
 					}
 
 					$nameLoop = ( $name = $val->name );
-				} elseif ( !$isCall && $this->matchStr( '...' ) ) {
-					$returner['variadic'] = true;
-					if ( $this->matchChar( ";" ) && !$isSemiColonSeperated ) {
-						$isSemiColonSeperated = true;
-					}
-					if ( $isSemiColonSeperated ) {
-						$argsSemiColon[] = [ 'name' => $arg->name, 'variadic' => true ];
+				} elseif ( $this->matchStr( '...' ) ) {
+					if ( !$isCall ) {
+						$returner['variadic'] = true;
+						if ( $this->matchChar( ";" ) && !$isSemiColonSeperated ) {
+							$isSemiColonSeperated = true;
+						}
+						if ( $isSemiColonSeperated ) {
+							$argsSemiColon[] = [ 'name' => $arg->name, 'variadic' => true ];
+						} else {
+							$argsComma[] = [ 'name' => $arg->name, 'variadic' => true ];
+						}
+						break;
 					} else {
-						$argsComma[] = [ 'name' => $arg->name, 'variadic' => true ];
+						$expand = true;
 					}
-					break;
 				} elseif ( !$isCall ) {
 					$name = $nameLoop = $val->name;
 					$value = null;
@@ -1612,7 +1631,7 @@ class Less_Parser {
 				$expressions[] = $value;
 			}
 
-			$argsComma[] = [ 'name' => $nameLoop, 'value' => $value ];
+			$argsComma[] = [ 'name' => $nameLoop, 'value' => $value, 'expand' => $expand ];
 
 			if ( $this->matchChar( ',' ) ) {
 				continue;
@@ -1629,7 +1648,7 @@ class Less_Parser {
 				if ( count( $expressions ) > 1 ) {
 					$value = new Less_Tree_Value( $expressions );
 				}
-				$argsSemiColon[] = [ 'name' => $name, 'value' => $value ];
+				$argsSemiColon[] = [ 'name' => $name, 'value' => $value, 'expand' => $expand ];
 
 				$name = null;
 				$expressions = [];
@@ -1784,7 +1803,8 @@ class Less_Parser {
 		if ( $e === null ) {
 			$this->save();
 			if ( $this->matchChar( '(' ) ) {
-				if ( ( $v = $this->parseSelector() ) && $this->matchChar( ')' ) ) {
+				$v = $this->parseSelector();
+				if ( $v && $this->matchChar( ')' ) ) {
 					$e = new Less_Tree_Paren( $v );
 					$this->forget();
 				} else {
@@ -1874,6 +1894,7 @@ class Less_Parser {
 		$c = null;
 		$index = $this->pos;
 
+		// phpcs:ignore Generic.CodeAnalysis.AssignmentInCondition
 		while ( ( $isLess && ( $extend = $this->parseExtend() ) ) || ( $isLess && ( $when = $this->matchStr( 'when' ) ) ) || ( $e = $this->parseElement() ) ) {
 			if ( $when ) {
 				$condition = $this->expect( 'parseConditions', 'expected condition' );
