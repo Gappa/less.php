@@ -19,29 +19,6 @@ class Less_Parser {
 
 		'import_dirs'			=> [],
 
-		// Override how imported file names are resolved.
-		//
-		// This legacy calllback exposes internal objects and their implementation
-		// details and is therefore deprecated. Use Less_Parser::SetImportDirs instead
-		// to override the resolution of imported file names.
-		//
-		// Example:
-		//
-		//     $parser = new Less_Parser( [
-		//       'import_callback' => function ( $importNode ) {
-		//            $path = $importNode->getPath();
-		//            if ( $path === 'special.less' ) {
-		//                return [ $mySpecialFilePath, null ];
-		//            }
-		//       }
-		//     ] );
-		//
-		// @since 1.5.1
-		// @deprecated since 4.3.0
-		// @see Less_Environment::callImportCallback
-		// @see Less_Parser::SetImportDirs
-		//
-		'import_callback'		=> null,
 		'cache_dir'				=> null,
 		'cache_method'			=> 'serialize', // false, 'serialize', 'callback';
 		'cache_callback_get'	=> null,
@@ -59,7 +36,7 @@ class Less_Parser {
 
 	];
 
-	/** @var array{compress:bool,strictUnits:bool,strictMath:bool,relativeUrls:bool,urlArgs:string,numPrecision:int,import_dirs:array,import_callback:null|callable,indentation:string} */
+	/** @var array{compress:bool,strictUnits:bool,strictMath:bool,relativeUrls:bool,urlArgs:string,numPrecision:int,import_dirs:array,indentation:string} */
 	public static $options = [];
 
 	/** @var Less_Environment */
@@ -167,10 +144,6 @@ class Less_Parser {
 
 			case 'import_dirs':
 				$this->SetImportDirs( $value );
-				return;
-
-			case 'import_callback':
-				$this->env->importCallback = $value;
 				return;
 
 			case 'cache_dir':
@@ -712,7 +685,7 @@ class Less_Parser {
 	/**
 	 * @internal since 4.3.0 No longer a public API.
 	 */
-	public function SetInput( $file_path ) {
+	private function SetInput( $file_path ) {
 		// Set up the input buffer
 		if ( $file_path ) {
 			$this->input = file_get_contents( $file_path );
@@ -733,7 +706,7 @@ class Less_Parser {
 	/**
 	 * @internal since 4.3.0 No longer a public API.
 	 */
-	public function UnsetInput() {
+	private function UnsetInput() {
 		// Free up some memory
 		$this->input = $this->pos = $this->input_len = $this->furthest = null;
 		$this->saveStack = [];
@@ -742,7 +715,7 @@ class Less_Parser {
 	/**
 	 * @internal since 4.3.0 Use Less_Cache instead.
 	 */
-	public function CacheFile( $file_path ) {
+	private function CacheFile( $file_path ) {
 		if ( $file_path && $this->CacheEnabled() ) {
 
 			$env = get_object_vars( $this->env );
@@ -778,7 +751,7 @@ class Less_Parser {
 	/**
 	 * @internal since 4.3.0 No longer a public API.
 	 */
-	public function save() {
+	private function save() {
 		$this->saveStack[] = $this->pos;
 	}
 
