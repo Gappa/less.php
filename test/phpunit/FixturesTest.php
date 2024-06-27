@@ -1,6 +1,6 @@
 <?php
 
-class phpunit_FixturesTest extends phpunit_bootstrap {
+class FixturesTest extends LessTestCase {
 	private const KNOWN_FAILURE = [
 		'lessjs-2.5.3' => [
 			// We moved this to Less.php parens.less test case because
@@ -9,7 +9,6 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			'parens' => true,
 		],
 		'lessjs-3.13.1' => [
-			'calc' => true, // New Feature
 			'functions' => true,
 			'functions-each' => true,
 			'import-reference-issues' => true,
@@ -50,13 +49,21 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 			foreach ( glob( "$cssDir/*.css" ) as $cssFile ) {
 				$name = basename( $cssFile, '.css' );
 				$lessFile = "$lessDir/$name.less";
-				$overrideFile = $overrideDir ? "$overrideDir/$name.css" : null;
-				if ( $overrideFile && file_exists( $overrideFile ) ) {
-					if ( file_get_contents( $overrideFile ) === file_get_contents( $cssFile ) ) {
-						print "WARNING: Redundant override for $overrideFile\n";
+				$overrideCssFile = $overrideDir ? "$overrideDir/$name.css" : null;
+				if ( $overrideCssFile && file_exists( $overrideCssFile ) ) {
+					if ( file_get_contents( $overrideCssFile ) === file_get_contents( $cssFile ) ) {
+						print "WARNING: Redundant override for $overrideCssFile\n";
 					}
-					$cssFile = $overrideFile;
+					$cssFile = $overrideCssFile;
 				}
+				$overrideLessFile = $overrideDir ? "$overrideDir/$name.less" : null;
+				if ( $overrideLessFile && file_exists( $overrideLessFile ) ) {
+					if ( file_get_contents( $overrideLessFile ) === file_get_contents( $lessFile ) ) {
+						print "WARNING: Redundant override for $overrideLessFile\n";
+					}
+					$lessFile = $overrideLessFile;
+				}
+
 				if ( in_array( $name, $unsupported ) ) {
 					continue;
 				}
@@ -95,7 +102,7 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 
 		// Check with cache
 		$optionsWithCache = $options + [
-			'cache_dir' => $this->cache_dir,
+			'cache_dir' => self::$cacheDir,
 			'functions' => [
 				'_color' => [ __CLASS__, 'FnColor' ],
 				'add' => [ __CLASS__, 'FnAdd' ],
@@ -105,7 +112,7 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 		$files = [ $lessFile => '' ];
 		try {
 			$cacheFile = Less_Cache::Regen( $files, $optionsWithCache );
-			$css = file_get_contents( $this->cache_dir . '/' . $cacheFile );
+			$css = file_get_contents( self::$cacheDir . '/' . $cacheFile );
 		} catch ( Less_Exception_Parser $e ) {
 			$css = $e->getMessage();
 		}
@@ -115,7 +122,7 @@ class phpunit_FixturesTest extends phpunit_bootstrap {
 		// Check using the cached data
 		try {
 			$cacheFile = Less_Cache::Get( $files, $optionsWithCache );
-			$css = file_get_contents( $this->cache_dir . '/' . $cacheFile );
+			$css = file_get_contents( self::$cacheDir . '/' . $cacheFile );
 		} catch ( Less_Exception_Parser $e ) {
 			$css = $e->getMessage();
 		}
