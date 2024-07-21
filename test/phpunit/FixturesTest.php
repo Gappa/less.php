@@ -13,12 +13,10 @@ class FixturesTest extends LessTestCase {
 			'functions-each' => true,
 			'import-reference-issues' => true,
 			'detached-rulesets' => true,
-			'import-reference' => true,
 			'import-module' => true,
 			'extend-selector' => true,
 			'mixins-guards' => true,
 			'merge' => true,
-			'css-3' => true,
 			'colors' => true,
 			'urls' => true,
 			'operations' => true,
@@ -27,9 +25,7 @@ class FixturesTest extends LessTestCase {
 			'css-escapes' => true,
 			'parse-interpolation' => true,
 			'selectors' => true,
-			'property-accessors' => true,
 			'property-name-interp' => true,
-			'permissive-parse' => true,
 		],
 	];
 

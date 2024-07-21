@@ -102,6 +102,7 @@ class Less_Parser {
 			$this->mb_internal_encoding = ini_get( 'mbstring.internal_encoding' );
 			@ini_set( 'mbstring.internal_encoding', 'ascii' );
 		}
+		Less_Tree::$parse = $this;
 	}
 
 	/**
@@ -343,6 +344,10 @@ class Less_Parser {
 				// Recurse to serialize the Less_Tree_Quoted value
 				return 'url(' . $this->getVariableValue( $var->value ) . ')';
 			case Less_Tree_Declaration::class:
+				if ( $var->value instanceof Less_Tree_Anonymous ) {
+					$nodes = $this->parseNode( $var->value->value, [ 'value', 'important' ], 0, [] );
+					return $this->getVariableValue( $nodes[1][0] );
+				}
 				return $this->getVariableValue( $var->value );
 			case Less_Tree_Value::class:
 				$values = [];
@@ -831,6 +836,153 @@ class Less_Parser {
 	}
 
 	/**
+	 * @param int|null $loc
+	 * @return array|string|void|null
+	 * @see less-3.13.1.js#parserInput.$quoted
+	 */
+	private function parseQuoted( $loc = null ) {
+		$pos = $loc ?? $this->pos;
+		$startChar = $this->input[ $pos ] ?? '';
+		if ( $startChar !== '\'' && $startChar !== '"' ) {
+			return;
+		}
+		$currentPos = $pos;
+		$i = 1;
+		while ( $currentPos + $i < $this->input_len ) {
+			// Optimization: Skip over irrelevant chars without slow loop
+			$i += strcspn( $this->input, "\n\r$startChar\\", $currentPos + $i );
+			switch ( $this->input[$currentPos + $i++] ) {
+				case "\\":
+					$i++;
+					break;
+				case "\r":
+				case "\n":
+					break;
+				case $startChar:
+					// NOTE: Our optimization means we look ahead instead of behind,
+					// so no +1s here.
+					$str = substr( $this->input, $currentPos, $i );
+					if ( !$loc && $loc !== 0 ) {
+						$this->skipWhitespace( $i );
+						return $str;
+					}
+					return [ $startChar, $str ];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Permissive parsing. Ignores everything except matching {} [] () and quotes
+	 * until matching token (outside of blocks)
+	 * @see less-3.13.1.js#parserInput.$parseUntil
+	 */
+	private function parseUntil( $tok ) {
+		$quote = '';
+		$returnVal = null;
+		$inComment = false;
+		$blockDepth = 0;
+		$blockStack = [];
+		$parseGroups = [];
+		$startPos = $this->pos;
+		$lastPos = $this->pos;
+		$i = $this->pos;
+		$loop = true;
+		if ( is_string( $tok ) ) {
+			$testChar = static function ( $char ) use ( $tok ) {
+				return $tok === $char;
+			};
+		} else {
+			$testChar = static function ( $char ) use ( $tok ) {
+				return in_array( $char, $tok );
+			};
+		}
+		do {
+			$nextChar = $this->input[$i];
+			if ( $blockDepth === 0 && $testChar( $nextChar ) ) {
+				$returnVal = substr( $this->input, $lastPos, $i - $lastPos );
+				if ( $returnVal ) {
+					$parseGroups[] = $returnVal;
+				} else {
+					$parseGroups[] = ' ';
+				}
+				$returnVal = $parseGroups;
+				$this->skipWhitespace( $i - $startPos );
+				$loop = false;
+			} else {
+				if ( $inComment ) {
+					if ( $nextChar === '*' && ( $this->input[$i + 1] ?? '' ) === '/' ) {
+						$i++;
+						$blockDepth--;
+						$inComment = false;
+					}
+					$i++;
+					continue;
+				}
+				switch ( $nextChar ) {
+					case '\\':
+						$i++;
+						$nextChar = $this->input[$i] ?? '';
+						$parseGroups[] = substr( $this->input, $lastPos, $i - $lastPos + 1 );
+						$lastPos = $i + 1;
+						break;
+					case '/':
+						if ( ( $this->input[$i + 1] ?? '' ) === '*' ) {
+							$i++;
+							$inComment = true;
+							$blockDepth++;
+						}
+						break;
+					case '\'':
+					case '"':
+						$quote = $this->parseQuoted( $i );
+						if ( $quote ) {
+							$parseGroups[] = substr( $this->input, $lastPos, $i - $lastPos );
+							$parseGroups[] = $quote;
+							$i += strlen( $quote[1] ) - 1;
+							$lastPos = $i + 1;
+						} else {
+							$this->skipWhitespace( $i - $startPos );
+							$returnVal = $nextChar;
+							$loop = false;
+						}
+						break;
+					case '{':
+						$blockStack[] = '}';
+						$blockDepth++;
+						break;
+					case '(':
+						$blockStack[] = ')';
+						$blockDepth++;
+						break;
+					case '[':
+						$blockStack[] = ']';
+						$blockDepth++;
+						break;
+					case '}':
+					case ')':
+					case ']':
+						$expected = array_pop( $blockStack );
+						if ( $nextChar === $expected ) {
+							$blockDepth--;
+						} else {
+							// move the parser to the error and return expected;
+							$this->skipWhitespace( $i - $startPos );
+							$returnVal = $expected;
+							$loop = false;
+						}
+				}
+				$i++;
+				if ( $i > $this->input_len ) {
+					$loop = false;
+				}
+			}
+		} while ( $loop );
+
+		return $returnVal ?: null;
+	}
+
+	/**
 	 * Same as match(), but don't change the state of the parser,
 	 * just return the match.
 	 *
@@ -931,6 +1083,61 @@ class Less_Parser {
 		}
 	}
 
+	/**
+	 * @param string $str
+	 * @see less-3.13.1.js#ParserInput.start
+	 */
+	private function parserInputStart( $str ) {
+		$this->pos = $this->furthest = 0;
+		$this->input = $str;
+		$this->input_len = strlen( $str );
+		$this->skipWhitespace( 0 );
+	}
+
+	/**
+	 *  Used after initial parsing to create nodes on the fly
+	 *
+	 * @param string $str string to parse
+	 * @param string[] $parseList array of parsers to run input through e.g. ["value", "important"]
+	 * @param int $currentIndex start number to begin indexing
+	 * @param array $fileInfo fileInfo to attach to created nodes
+	 * @return array
+	 * @see less-3.13.1.js#Parser.parseNode
+	 */
+	public function parseNode( $str, array $parseList, $currentIndex, $fileInfo ) {
+		$returnNodes = [];
+		try {
+			$this->parserInputStart( $str );
+			foreach ( $parseList as $p ) {
+				$i = $this->pos;
+				$method = 'parse' . ucfirst( $p );
+				if ( !method_exists( $this, $method ) ) {
+					throw new CompileError( 'Unknown parser ' . $p );
+				}
+				$result = $this->$method();
+				if ( $result ) {
+					$result->index = $i + $currentIndex;
+					$result->currentFileInfo = $fileInfo;
+					$returnNodes[] = $result;
+				} else {
+					$returnNodes[] = null;
+				}
+			}
+			if ( $this->pos >= $this->input_len ) {
+				return [ null, $returnNodes ];
+			} else {
+				return [ true, null ];
+			}
+		} catch ( Less_Exception_Parser $e ) {
+			throw new Less_Exception_Parser(
+				$e->getMessage(),
+				$e,
+				( $e->index ?? 0 ) + $currentIndex,
+				$fileInfo
+			);
+		}
+	}
+
 	//
 	// Here in, the parsing rules/functions
 	//
@@ -1007,7 +1214,16 @@ class Less_Parser {
 
 			$node = $this->parseMixinDefinition()
 				// Optimisation: NameValue is specific to less.php
-				?? $this->parseNameValue()
+				/**
+				 * TODO enabling $this->parseNameValue causes property-accessors to fail with
+				 *
+				 * 'error evaluating function `lighten` The first argument to lighten must be a
+				 * color index: 146 in property-accessors.less on line 9,
+				 *
+				 * note: the Less_Tree_NameValue specifies that it may break color keyword
+				 * interpretation
+				 */
+				// ?? $this->parseNameValue()
 				?? $this->parseDeclaration()
 				?? $this->parseRuleset()
 				?? $this->parseMixinCall()
@@ -1053,49 +1269,27 @@ class Less_Parser {
 	 * @see less-3.13.1.js#entities.quoted
 	 */
 	private function parseEntitiesQuoted( $forceEscaped = false ) {
-		// Optimization: Determine match potential without save()/restore() overhead
 		// Optimization: Inline matchChar() here, with its skipWhitespace(1) call below
-		$startChar = $this->input[$this->pos] ?? null;
-		$isEscaped = $startChar === '~';
-		if ( ( !$isEscaped && $startChar !== "'" && $startChar !== '"' ) || ( $forceEscaped && !$isEscaped ) ) {
+		$isEscaped = ( $this->input[ $this->pos ] ?? null ) === '~';
+		$index = $this->pos;
+		if ( $forceEscaped && !$isEscaped ) {
 			return;
 		}
-
-		$index = $this->pos;
+		// Optimization: Move save() down to avoid save()+restore()
+		// overhead during the early return above which is a hot code path.
 		$this->save();
-
 		if ( $isEscaped ) {
 			$this->skipWhitespace( 1 );
-			$startChar = $this->input[$this->pos] ?? null;
-			if ( $startChar !== "'" && $startChar !== '"' ) {
-				$this->restore();
-				return;
-			}
 		}
 
-		// Optimization: Inline matching of quotes for 8% overall speed up
-		// on large LESS files. https://gerrit.wikimedia.org/r/939727
-		// @see less-2.5.3.js#parserInput.$quoted
-		$i = 1;
-		while ( $this->pos + $i < $this->input_len ) {
-			// Optimization: Skip over irrelevant chars without slow loop
-			$i += strcspn( $this->input, "\n\r$startChar\\", $this->pos + $i );
-			switch ( $this->input[$this->pos + $i++] ) {
-				case "\\":
-					$i++;
-					break;
-				case "\r":
-				case "\n":
-					break 2;
-				case $startChar:
-					$str = substr( $this->input, $this->pos, $i );
-					$this->skipWhitespace( $i );
-					$this->forget();
-					return new Less_Tree_Quoted( $str[0], substr( $str, 1, -1 ), $isEscaped, $index, $this->env->currentFileInfo );
-			}
+		$str = $this->parseQuoted();
+		if ( !$str ) {
+			$this->restore();
+			return;
 		}
-
-		$this->restore();
+		$this->forget();
+		return new Less_Tree_Quoted( $str[0], substr( $str, 1, -1 ), $isEscaped,
+			$index, $this->env->currentFileInfo );
 	}
 
 	/**
@@ -1233,14 +1427,22 @@ class Less_Parser {
 			return;
 		}
 
-		$value = $this->parseEntitiesQuoted() ?? $this->parseEntitiesVariable() ?? $this->matchReg( '/\\Gdata\:.*?[^\)]+/' ) ?? $this->matchReg( '/\\G(?:(?:\\\\[\(\)\'"])|[^\(\)\'"])+/' ) ?? null;
+		$value = $this->parseEntitiesQuoted()
+			?? $this->parseEntitiesVariable()
+			?? $this->parseEntitiesProperty()
+			?? $this->matchReg( '/\\Gdata\:.*?[^\)]+/' ) // TODO less doesn't handle this
+			?? $this->matchReg( '/\\G(?:(?:\\\\[\(\)\'"])|[^\(\)\'"])+/' )
+			?? null;
+
 		if ( !$value ) {
 			$value = '';
 		}
 		$this->autoCommentAbsorb = true;
 		$this->expectChar( ')' );
 
-		if ( $value instanceof Less_Tree_Quoted || $value instanceof Less_Tree_Variable ) {
+		if ( $value instanceof Less_Tree_Quoted
+			|| $value instanceof Less_Tree_Variable
+			|| $value instanceof Less_Tree_Property ) {
 			return new Less_Tree_Url( $value, $this->env->currentFileInfo );
 		}
 
@@ -1285,6 +1487,34 @@ class Less_Parser {
 	}
 
 	/**
+	 * A Property accessor, such as `$color`, in
+	 *
+	 *   background-color: $color
+	 */
+	private function parseEntitiesProperty() {
+		$index = $this->pos;
+
+		if ( ( $this->input[$this->pos] ?? '' ) === '$' ) {
+			$name = $this->matchReg( '/\\G\$[\w-]+/' );
+			if ( $name ) {
+				return new Less_Tree_Property( $name, $index, $this->env->currentFileInfo );
+			}
+		}
+	}
+
+	// A property entity useing the protective {} e.g. @{prop}
+	private function parseEntitiesPropertyCurly() {
+		$index = $this->pos;
+
+		if ( $this->input[$this->pos] === '$' ) {
+			$curly = $this->matchReg( '/\\G@\{([\w-]+)\}/' );
+			if ( $curly ) {
+				return new Less_Tree_Property( "$" . $curly[1], $index, $this->env->currentFileInfo );
+			}
+		}
+	}
+
+	/**
 	 * A Hexadecimal color
 	 *
 	 *	 #4F3C2F
@@ -1310,7 +1540,7 @@ class Less_Parser {
 	 * @return Less_Tree_Dimension|null
 	 */
 	private function parseEntitiesDimension() {
-		$c = @ord( $this->input[$this->pos] );
+		$c = @ord( $this->input[$this->pos] ?? '' );
 
 		// Is the first char of the dimension 0-9, '.', '+' or '-'
 		if ( ( $c > 57 || $c < 43 ) || $c === 47 || $c == 44 ) {
@@ -1553,7 +1783,10 @@ class Less_Parser {
 					}
 					break;
 				}
-				$arg = $this->parseEntitiesVariable() ?? $this->parseEntitiesLiteral() ?? $this->parseEntitiesKeyword();
+				$arg = $this->parseEntitiesVariable()
+					?? $this->parseEntitiesProperty()
+					?? $this->parseEntitiesLiteral()
+					?? $this->parseEntitiesKeyword();
 			}
 
 			if ( !$arg ) {
@@ -1576,7 +1809,7 @@ class Less_Parser {
 				$val = $arg;
 			}
 
-			if ( $val instanceof Less_Tree_Variable ) {
+			if ( $val instanceof Less_Tree_Variable || $val instanceof Less_Tree_Property ) {
 
 				if ( $this->matchChar( ':' ) ) {
 					if ( $expressions ) {
@@ -1734,6 +1967,7 @@ class Less_Parser {
 			$this->parseEntitiesLiteral() ??
 			$this->parseEntitiesVariable() ??
 			$this->parseEntitiesUrl() ??
+			$this->parseEntitiesProperty() ??
 			$this->parseEntitiesCall() ??
 			$this->parseEntitiesKeyword() ??
 			$this->parseEntitiesJavascript();
@@ -1992,7 +2226,11 @@ class Less_Parser {
 		$selectors = [];
 
 		$this->save();
-
+		// TODO: missing https://github.com/less/less.js/commit/b8140d4baad18ba732e2b322d8891a9b0ff065d5#diff-cad419f131cbecb0799ee17eba9319d3ff51de09eb3876efb9e4c068c1f6025f
+		// the commit above updated the `permissive-parse.less` fixture worked on Id36e0f142d7f430603da3f0d6825aa6a0bc9b7f1
+		// and it required to add an override for permisive-parse.css.
+		// When working on parse interpolation, please make sure to remove the permissive-parse
+		// override
 		while ( true ) {
 			$s = $this->parseLessSelector();
 			if ( !$s ) {
@@ -2057,15 +2295,14 @@ class Less_Parser {
 		$this->restore();
 	}
 
-	// @see less-2.5.3.js#parsers.declaration
-	// @todo provide feature parity with 3.13.1
-	private function parseDeclaration( $tryAnonymous = null ) {
+	// @see less-3.13.1.js#parsers.declaration
+	private function parseDeclaration() {
 		$value = null;
-		$startOfRule = $this->pos;
+		$index = $this->pos;
 		$c = $this->input[$this->pos] ?? null;
 		$important = null;
 		$merge = false;
-
+		// TODO: missing support of $hasDR from 3.13.1
 		// TODO: Figure out why less.js also handles ':' here, and implement with regression test.
 		if ( $c === '.' || $c === '#' || $c === '&' ) {
 			return;
@@ -2088,47 +2325,144 @@ class Less_Parser {
 				if ( !$isVariable && count( $name ) > 1 ) {
 					$merge = array_pop( $name )->value;
 				}
+				// Custom property values get permissive parsing
+				if ( $name[0] instanceof Less_Tree_Keyword
+					&& $name[0]->value && strpos( $name[0]->value, '--' ) === 0 ) {
+					$value = $this->parsePermissiveValue( ';' );
+				} else {
+					// Try to store values as anonymous
+					// If we need the value later we'll re-parse it in ruleset.parseValue
+					$value = $this->parseAnonymousValue();
+				}
 
-				// prefer to try to parse first if its a variable or we are compressing
-				// but always fallback on the other one
-				$tryValueFirst = ( !$tryAnonymous && ( self::$options['compress'] || $isVariable ) );
-				if ( $tryValueFirst ) {
-					$value = $this->parseValue();
+				if ( $value ) {
+					$this->forget();
+
+					// anonymous values absorb the end ';' which is required for them to work
+					return new Less_Tree_Declaration( $name, $value, false, $merge, $index,
+						$this->env->currentFileInfo );
 				}
 				if ( !$value ) {
-					$value = $this->parseAnonymousValue();
-					if ( $value ) {
-						$this->forget();
-						// anonymous values absorb the end ';' which is required for them to work
-						return new Less_Tree_Declaration( $name, $value, false, $merge, $startOfRule, $this->env->currentFileInfo );
-					}
-				}
-				if ( !$tryValueFirst && !$value ) {
 					$value = $this->parseValue();
 				}
-
-				$important = $this->parseImportant();
-			}
-
-			if ( $value && $this->parseEnd() ) {
-				$this->forget();
-				return new Less_Tree_Declaration( $name, $value, $important, $merge, $startOfRule, $this->env->currentFileInfo );
-			} else {
-				$this->restore();
-				if ( $value && !$tryAnonymous ) {
-					return $this->parseDeclaration( true );
+				if ( $value ) {
+					$important = $this->parseImportant();
+				} elseif ( $isVariable ) {
+					$value = $this->parsePermissiveValue( ';' );
 				}
 			}
+			if ( $value && $this->parseEnd() ) {
+				$this->forget();
+				return new Less_Tree_Declaration( $name, $value, $important, $merge, $index, $this->env->currentFileInfo );
+			} else {
+				$this->restore();
+			}
 		} else {
-			$this->forget();
+			$this->restore();
 		}
 	}
 
+		/**
+		 * @todo missing '#' handling in matchReg(), it's a part of Namesspace Values patch and
+		 * will be implemented in I264c6618e4a4434cd6c6458a3714320119382a48
+		 */
 	private function parseAnonymousValue() {
-		$match = $this->matchReg( '/\\G([^@+\/\'"*`(;{}-]*);/' );
+		$index = $this->pos;
+		$match = $this->matchReg( '/\\G([^@\$+\/\'"*`(;{}-]*);/' );
 		if ( $match ) {
-			return new Less_Tree_Anonymous( $match[1] );
+			return new Less_Tree_Anonymous( $match[1], $index );
 		}
+	}
+
+	/**
+	 * Used for custom properties, at-rules, and variables (as fallback)
+	 * Parses almost anything inside of {} [] () "" blocks
+	 * until it reaches outer-most tokens.
+	 *
+	 * First, it will try to parse comments and entities to reach
+	 * the end. This is mostly like the Expression parser except no
+	 * math is allowed.
+	 *
+	 * @see less-3.13.1.js#parsers.permissiveValue
+	 * @param null|string|array $untilTokens
+	 */
+	private function parsePermissiveValue( $untilTokens = null ) {
+		$value = [];
+		$tok = $untilTokens ?? ';';
+		$index = $this->pos;
+		$result = [];
+
+		if ( is_array( $tok ) ) {
+			$testCurrentChar = static function ( $currentChar ) use ( $tok ) {
+				return in_array( $currentChar, $tok );
+			};
+		} else {
+			$testCurrentChar = static function ( $currentChar ) use ( $tok ) {
+				return $tok === $currentChar;
+			};
+		}
+
+		if ( $testCurrentChar( $this->input[$this->pos] ) ) {
+			return;
+		}
+		do {
+			$e = $this->parseComment();
+			if ( $e ) {
+				$value[] = $e;
+				continue;
+			}
+			$e = $this->parseEntity();
+			if ( $e ) {
+				$value[] = $e;
+			}
+		} while ( $e );
+		$done = $testCurrentChar( $this->input[$this->pos] );
+		if ( $value ) {
+			$value = new Less_Tree_Expression( $value );
+			if ( $done ) {
+				return $value;
+			} else {
+				$result[] = $value;
+			}
+			// Preserve space before $parseUntil as it will not
+			if ( $this->input[$this->pos - 1] === ' ' ) {
+				$result[] = new Less_Tree_Anonymous( ' ', $index );
+			}
+		}
+		$this->save();
+		$value = $this->parseUntil( $tok );
+
+		if ( $value ) {
+			if ( is_string( $value ) ) {
+				$this->error( "expected '" . $value . "'" );
+			}
+			if ( count( $value ) === 1 && $value[0] === ' ' ) {
+				$this->forget();
+				return new Less_Tree_Anonymous( '', $index );
+			}
+			$valueLength = count( $value );
+			for ( $i = 0; $i < $valueLength; $i++ ) {
+				$item = $value[$i];
+				if ( is_array( $item ) ) {
+					$result[] =	new Less_Tree_Quoted( $item[0], $item[1], true, $index,
+							$this->env->currentFileInfo );
+				} else {
+					if ( $i === $valueLength - 1 ) {
+						$item = trim( $item );
+					}
+					// Treat like quoted values, but replace vars like unquoted expressions
+					$quote =
+						new Less_Tree_Quoted( '\'', $item, true, $index,
+							$this->env->currentFileInfo );
+					$quote->variableRegex = '/@([\w-]+)/';
+					$quote->propRegex = '/\$([\w-]+)/';
+					$result[] = $quote;
+				}
+			}
+			$this->forget();
+			return new Less_Tree_Expression( $result, true );
+		}
+		$this->restore();
 	}
 
 	//
@@ -2381,6 +2715,10 @@ class Less_Parser {
 				$hasUnknown = true;
 				$isRooted = false;
 				break;
+			default:
+				// TODO: port other parts of https://github.com/less/less.js/commit/e3c13121dfdca48ba8fe26335cc12dd3f7948676
+				$hasUnknown = true;
+				break;
 		}
 
 		$this->commentStore = [];
@@ -2396,10 +2734,14 @@ class Less_Parser {
 				$this->error( "expected " . $name . " expression" );
 			}
 		} elseif ( $hasUnknown ) {
-
-			$value = $this->matchReg( '/\\G[^{;]+/' );
-			if ( $value ) {
-				$value = new Less_Tree_Anonymous( trim( $value ) );
+			$value = $this->parsePermissiveValue( [ '{', ';' ] );
+			$hasBlock = $this->input[$this->pos] === '{';
+			if ( !$value ) {
+				if ( !$hasBlock && $this->input[$this->pos] !== ';' ) {
+					$this->error( $name . " rule is missing block or ending semi-colon" );
+				}
+			} elseif ( !$value->value ) {
+				$value = null;
 			}
 		}
 
@@ -2425,6 +2767,7 @@ class Less_Parser {
 	//
 	private function parseValue() {
 		$expressions = [];
+		$index = $this->pos;
 
 		do {
 			$e = $this->parseExpression();
@@ -2437,7 +2780,7 @@ class Less_Parser {
 		} while ( $e );
 
 		if ( $expressions ) {
-			return new Less_Tree_Value( $expressions );
+			return new Less_Tree_Value( $expressions, $index );
 		}
 	}
 
@@ -2453,7 +2796,9 @@ class Less_Parser {
 			$a = $this->parseAddition();
 			if ( $a && $this->matchChar( ')' ) ) {
 				$this->forget();
-				return new Less_Tree_Expression( [ $a ], true );
+				$e = new Less_Tree_Expression( [ $a ] );
+				$e->parens = true;
+				return $e;
 			}
 		}
 		$this->restore();
@@ -2604,8 +2949,8 @@ class Less_Parser {
 			return;
 		}
 		$char = $this->input[$offset];
-		// TODO: handle char `$`
-		if ( $char === '@' || $char === '(' ) {
+
+		if ( $char === '@' || $char === '(' || $char === '$' ) {
 			$negate = $this->matchChar( '-' );
 		}
 
@@ -2613,7 +2958,7 @@ class Less_Parser {
 			?? $this->parseEntitiesDimension()
 			?? $this->parseEntitiesColor()
 			?? $this->parseEntitiesVariable()
-			// TODO: from less-3.13.1.js missing entities.property()
+			?? $this->parseEntitiesProperty()
 			?? $this->parseEntitiesCall()
 			?? $this->parseEntitiesQuoted( true );
 			// TODO: from less-3.13.1.js missing entities.colorKeyword()
@@ -2632,9 +2977,11 @@ class Less_Parser {
 	 * or white-space delimited Entities.
 	 *
 	 * @return Less_Tree_Expression|null
+	 * @see less-3.13.1.js#parsers.expression
 	 */
 	private function parseExpression() {
 		$entities = [];
+		$index = $this->pos;
 
 		do {
 			$e = $this->parseComment();
@@ -2643,13 +2990,16 @@ class Less_Parser {
 				continue;
 			}
 			$e = $this->parseAddition() ?? $this->parseEntity();
+			if ( $e instanceof Less_Tree_Comment ) {
+				$e = null;
+			}
 			if ( $e ) {
 				$entities[] = $e;
 				// operations do not allow keyword "/" dimension (e.g. small/20px) so we support that here
 				if ( !$this->peekReg( '/\\G\/[\/*]/' ) ) {
 					$delim = $this->matchChar( '/' );
 					if ( $delim ) {
-						$entities[] = new Less_Tree_Anonymous( $delim );
+						$entities[] = new Less_Tree_Anonymous( $delim, $index );
 					}
 				}
 			}
@@ -2678,7 +3028,7 @@ class Less_Parser {
 	 * eg: 'color', 'width', 'height', etc
 	 *
 	 * @return array<Less_Tree_Keyword|Less_Tree_Variable>
-	 * @see less-2.5.3.js#parsers.ruleProperty
+	 * @see less-3.13.1.js#parsers.ruleProperty
 	 */
 	private function parseRuleProperty() {
 		$name = [];
@@ -2697,7 +3047,8 @@ class Less_Parser {
 
 		// Consume!
 		// @phan-suppress-next-line PhanPluginEmptyStatementWhileLoop
-		while ( $this->rulePropertyMatch( '/\\G((?:[\w-]+)|(?:@\{[\w-]+\}))/', $index, $name ) );
+		while ( $this->rulePropertyMatch( '/\\G((?:[\w-]+)|(?:[@\$]\{[\w-]+\}))/', $index, $name
+		) );
 
 		if ( ( count( $name ) > 1 ) && $this->rulePropertyMatch( '/\\G((?:\+_|\+)?)\s*:/', $index, $name ) ) {
 			$this->forget();
@@ -2709,11 +3060,13 @@ class Less_Parser {
 				array_shift( $index );
 			}
 			foreach ( $name as $k => $s ) {
-				if ( !$s || $s[0] !== '@' ) {
-					$name[$k] = new Less_Tree_Keyword( $s );
-				} else {
-					$name[$k] = new Less_Tree_Variable( '@' . substr( $s, 2, -1 ), $index[$k], $this->env->currentFileInfo );
-				}
+				$firstChar = $s[0] ?? '';
+				$name[$k] = ( $firstChar !== '@' && $firstChar !== '$' ) ?
+					new Less_Tree_Keyword( $s ) :
+					( $s[0] === '@'
+						? new Less_Tree_Variable( '@' . substr( $s, 2, -1 ), $index[$k], $this->env->currentFileInfo )
+						: new Less_Tree_Property( '$' . substr( $s, 2, -1 ), $index[$k], $this->env->currentFileInfo )
+					);
 			}
 			return $name;
 		} else {
