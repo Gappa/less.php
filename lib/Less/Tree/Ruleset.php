@@ -379,7 +379,6 @@ class Less_Tree_Ruleset extends Less_Tree {
 
 	/**
 	 * @param string $name
-	 * @return Less_Tree_Declaration|null
 	 * @see less-3.13.1#Ruleset.prototype.property
 	 */
 	public function property( $name ) {
@@ -411,6 +410,15 @@ class Less_Tree_Ruleset extends Less_Tree {
 			return $decl;
 		} else {
 			return $decl;
+		}
+	}
+
+	public function lastDeclaration() {
+		for ( $i = count( $this->rules ); $i > 0; $i-- ) {
+			$decl = $this->rules[ $i - 1 ];
+			if ( $decl instanceof Less_Tree_Declaration ) {
+				return $this->parseValue( $decl );
+			}
 		}
 	}
 
