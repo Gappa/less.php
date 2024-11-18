@@ -19,7 +19,7 @@ class Less_Tree_Selector extends Less_Tree {
 	public $_oelements_len;
 	public $cacheable = true;
 
-	public function __construct( $elements, $extendList = [], $condition = null, $index = null, $currentFileInfo = null, bool $isReferenced = null ) {
+	public function __construct( $elements, $extendList = [], $condition = null, $index = null, $currentFileInfo = null, ?bool $isReferenced = null ) {
 	}
 
 	public function accept( $visitor ) {
