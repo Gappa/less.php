@@ -71,8 +71,6 @@ class Less_Parser {
 	private $saveStack = [];
 	/** @var int */
 	private $furthest;
-	/** @var string for remember exists value of mbstring.internal_encoding */
-	private $mb_internal_encoding = '';
 
 	/** @var bool */
 	private $autoCommentAbsorb = true;
@@ -120,13 +118,6 @@ class Less_Parser {
 			$this->Reset( $env );
 		}
 
-		// mbstring.func_overload > 1 bugfix
-		// The encoding value must be set for each source file,
-		// therefore, to conserve resources and improve the speed of this design is taken here
-		if ( ini_get( 'mbstring.func_overload' ) ) {
-			$this->mb_internal_encoding = ini_get( 'mbstring.internal_encoding' );
-			@ini_set( 'mbstring.internal_encoding', 'ascii' );
-		}
 		Less_Tree::$parse = $this;
 	}
 
@@ -272,13 +263,6 @@ class Less_Parser {
 		// reset php settings
 		@ini_set( 'precision', $precision );
 		setlocale( LC_NUMERIC, $locale );
-
-		// If you previously defined $this->mb_internal_encoding
-		// is required to return the encoding as it was before
-		if ( $this->mb_internal_encoding != '' ) {
-			@ini_set( "mbstring.internal_encoding", $this->mb_internal_encoding );
-			$this->mb_internal_encoding = '';
-		}
 
 		// Rethrow exception after we handled resetting the environment
 		if ( !empty( $exc ) ) {
@@ -2495,7 +2479,7 @@ class Less_Parser {
 				// Custom property values get permissive parsing
 				if ( is_array( $name ) && array_key_exists( 0, $name ) // to satisfy phan
 					&& $name[0] instanceof Less_Tree_Keyword
-					&& $name[0]->value && strpos( $name[0]->value, '--' ) === 0 ) {
+					&& $name[0]->value && str_starts_with( $name[0]->value, '--' ) ) {
 					$value = $this->parsePermissiveValue( [ ';', '}' ] );
 				} else {
 					// Try to store values as anonymous
@@ -3371,7 +3355,7 @@ class Less_Parser {
 			if ( strval( $value ) === "" ) {
 				$value = '~""';
 			}
-			$s .= ( ( $name[0] === '@' ) ? '' : '@' ) . $name . ': ' . $value . ( ( substr( $value, -1 ) === ';' ) ? '' : ';' );
+			$s .= ( str_starts_with( $name, '@' ) ? '' : '@' ) . $name . ': ' . $value . ( str_ends_with( $value, ';' ) ? '' : ';' );
 		}
 
 		return $s;
@@ -3406,7 +3390,7 @@ class Less_Parser {
 	}
 
 	public static function AbsPath( $path, $winPath = false ) {
-		if ( strpos( $path, '//' ) !== false && preg_match( '/^(https?:)?\/\//i', $path ) ) {
+		if ( str_contains( $path, '//' ) && preg_match( '/^(https?:)?\/\//i', $path ) ) {
 			return $winPath ? '' : false;
 		} else {
 			$path = realpath( $path );
