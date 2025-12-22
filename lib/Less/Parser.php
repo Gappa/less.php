@@ -717,17 +717,17 @@ class Less_Parser {
 
 	private function cacheFile( $file_path ) {
 		if ( $file_path && $this->CacheEnabled() ) {
-
 			$env = get_object_vars( $this->env );
 			unset( $env['frames'] );
 
-			$parts = [];
-			$parts[] = $file_path;
-			$parts[] = filesize( $file_path );
-			$parts[] = filemtime( $file_path );
-			$parts[] = $env;
-			$parts[] = Less_Version::cache_version;
-			$parts[] = self::$options['cache_method'];
+			$parts = [
+				$file_path,
+				filesize( $file_path ),
+				filemtime( $file_path ),
+				$env,
+				Less_Version::cache_version,
+				self::$options['cache_method'],
+			];
 			return self::$options['cache_dir'] . Less_Cache::$prefix . base_convert( sha1( json_encode( $parts ) ), 16, 36 ) . '.lesscache';
 		}
 	}
@@ -1582,7 +1582,7 @@ class Less_Parser {
 		static $CHARCODE_FORWARD_SLASH = 47;
 		static $CHARCODE_PLUS = 43;
 		static $CHARCODE_9 = 57;
-		$c = ord( $this->input[$this->pos] ?? '' );
+		$c = isset( $this->input[$this->pos] ) ? ord( $this->input[$this->pos] ) : 0;
 		// Is the first char of the dimension 0-9, '.', '+' or '-'
 		$peekNotNumeric = ( $c > $CHARCODE_9 || $c < $CHARCODE_PLUS ) || $c === $CHARCODE_FORWARD_SLASH || $c === $CHARCODE_COMMA;
 
