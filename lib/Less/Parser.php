@@ -59,7 +59,7 @@ class Less_Parser {
 
 	];
 
-	/** @var array{compress:bool,strictUnits:bool,relativeUrls:bool,urlArgs:string,numPrecision:int,import_dirs:array,cache_dir:?string,cache_incremental:bool,indentation:string} */
+	/** @var array{strictUnits:bool,relativeUrls:bool,urlArgs:string,import_dirs:array,cache_dir:?string,cache_incremental:bool,indentation:string} */
 	public static $options = [];
 
 	/** @var string Less input string */
@@ -156,6 +156,14 @@ class Less_Parser {
 	 */
 	public function SetOption( $option, $value ) {
 		switch ( $option ) {
+			case 'compress':
+				$this->env->compress = (bool)$value;
+				break;
+
+			case 'numPrecision':
+				$this->env->numPrecision = (int)$value;
+				break;
+
 			case 'strictMath':
 				if ( $value ) {
 					$this->env->math = Less_Environment::MATH_PARENS;
@@ -249,12 +257,12 @@ class Less_Parser {
 				$generator = new Less_SourceMap_Generator( $evaldRoot, self::$contentsMap, self::$options );
 				// will also save file
 				// FIXME: should happen somewhere else?
-				$css = $generator->generateCSS();
+				$css = $generator->generateCSS( $this->env );
 			} else {
-				$css = $evaldRoot->toCSS();
+				$css = $evaldRoot->toCSS( $this->env );
 			}
 
-			if ( self::$options['compress'] ) {
+			if ( $this->env->compress ) {
 				$css = preg_replace( '/(^(\s)+)|((\s)+$)/', '', $css );
 			}
 
@@ -419,7 +427,9 @@ class Less_Parser {
 		if ( self::$has_extends ) {
 			$visitors[] = new Less_Visitor_processExtends();
 		}
-		$visitors[] = new Less_Visitor_toCSS();
+		$toCssEnv = new Less_Environment();
+		$toCssEnv->compress = $this->env->compress;
+		$visitors[] = new Less_Visitor_toCSS( $toCssEnv );
 
 		if ( self::$options['plugins'] ) {
 			foreach ( self::$options['plugins'] as $plugin ) {
@@ -1410,21 +1420,27 @@ class Less_Parser {
 	 *	 filter: progid:DXImageTransform.Microsoft.Alpha( *opacity=50* )
 	 *
 	 * @return Less_Tree_Assignment|null
-	 * @see less-2.5.3.js#parsers.entities.assignment
+	 * @see less-3.13.1.js#parsers.entities.assignment
 	 */
 	private function parseEntitiesAssignment() {
+		$this->save();
 		$key = $this->matchReg( '/\\G\w+(?=\s?=)/' );
 		if ( !$key ) {
+			$this->restore();
 			return;
 		}
 
 		if ( !$this->matchChar( '=' ) ) {
+			$this->restore();
 			return;
 		}
 
 		$value = $this->parseEntity();
 		if ( $value ) {
+			$this->forget();
 			return new Less_Tree_Assignment( $key, $value );
+		} else {
+			$this->restore();
 		}
 	}
 

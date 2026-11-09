@@ -54,16 +54,13 @@ class Less_Tree_Color extends Less_Tree {
 		return 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
 	}
 
-	/**
-	 * @see Less_Tree::genCSS
-	 */
-	public function genCSS( $output ) {
-		$output->add( $this->toCSS() );
+	public function genCSS( ?Less_Environment $context, $output ) {
+		$output->add( $this->toCSS( $context ) );
 	}
 
-	public function toCSS( $doNotCompress = false ) {
-		$compress = Less_Parser::$options['compress'] && !$doNotCompress;
-		$alpha = $this->fround( $this->alpha );
+	public function toCSS( ?Less_Environment $context = null, $doNotCompress = false ) {
+		$compress = $context && $context->compress && !$doNotCompress;
+		$alpha = $this->fround( $context, $this->alpha );
 
 		// If we have alpha transparency other than 1.0, the only way to represent it
 		// is via rgba(). Otherwise, we use the hex representation,
@@ -105,9 +102,9 @@ class Less_Tree_Color extends Less_Tree {
 				// fall through
 			case 'hsl':
 				$color = $this->toHSL();
-				$args = [ $this->fround( $color["h"] ),
-					$this->fround( $color["s"] * 100 ) . "%",
-					$this->fround( $color["l"] * 100 ) . "%",
+				$args = [ $this->fround( $context, $color["h"] ),
+					$this->fround( $context, $color["s"] * 100 ) . "%",
+					$this->fround( $context, $color["l"] * 100 ) . "%",
 					...$args
 				];
 

@@ -30,21 +30,22 @@ class Less_Tree {
 	public static $parse;
 
 	/**
-	 * @see less-2.5.3.js#Node.prototype.toCSS
+	 * @see less-3.13.1.js#Node.prototype.toCSS
 	 */
-	public function toCSS() {
+	public function toCSS( ?Less_Environment $context = null ) {
 		$output = new Less_Output();
-		$this->genCSS( $output );
+		$this->genCSS( $context, $output );
 		return $output->toString();
 	}
 
 	/**
 	 * Generate CSS by adding it to the output object
 	 *
+	 * @param ?Less_Environment $context
 	 * @param Less_Output $output The output
 	 * @return void
 	 */
-	public function genCSS( $output ) {
+	public function genCSS( ?Less_Environment $context, $output ) {
 	}
 
 	public function compile( $env ) {
@@ -55,7 +56,7 @@ class Less_Tree {
 	 * @param string $op
 	 * @param float $a
 	 * @param float $b
-	 * @see less-2.5.3.js#Node.prototype._operate
+	 * @see less-3.13.1.js#Node.prototype._operate
 	 */
 	protected function _operate( $op, $a, $b ) {
 		switch ( $op ) {
@@ -71,52 +72,15 @@ class Less_Tree {
 	}
 
 	/**
-	 * @see less-2.5.3.js#Node.prototype.fround
+	 * @see less-3.13.1.js#Node.prototype.fround
 	 */
-	protected function fround( $value ) {
-		if ( $value === 0 ) {
+	protected function fround( ?Less_Environment $context, $value ) {
+		if ( $context ) {
+			$p = pow( 10, $context->numPrecision );
+			return round( $value * $p ) / $p;
+		} else {
 			return $value;
 		}
-
-		// TODO: Migrate to passing $env.
-		if ( Less_Parser::$options['numPrecision'] ) {
-			$p = pow( 10, Less_Parser::$options['numPrecision'] );
-			return round( $value * $p ) / $p;
-		}
-		return $value;
-	}
-
-	/**
-	 * @param Less_Output $output
-	 * @param Less_Tree_Ruleset[] $rules
-	 */
-	public static function outputRuleset( $output, $rules ) {
-		$ruleCnt = count( $rules );
-		Less_Environment::$tabLevel++;
-
-		// Compressed
-		if ( Less_Parser::$options['compress'] ) {
-			$output->add( '{' );
-			for ( $i = 0; $i < $ruleCnt; $i++ ) {
-				$rules[$i]->genCSS( $output );
-			}
-
-			$output->add( '}' );
-			Less_Environment::$tabLevel--;
-			return;
-		}
-
-		// Non-compressed
-		$tabSetStr = "\n" . str_repeat( Less_Parser::$options['indentation'], Less_Environment::$tabLevel - 1 );
-		$tabRuleStr = $tabSetStr . Less_Parser::$options['indentation'];
-
-		$output->add( " {" );
-		for ( $i = 0; $i < $ruleCnt; $i++ ) {
-			$output->add( $tabRuleStr );
-			$rules[$i]->genCSS( $output );
-		}
-		Less_Environment::$tabLevel--;
-		$output->add( $tabSetStr . '}' );
 	}
 
 	public function accept( $visitor ) {
@@ -126,7 +90,7 @@ class Less_Tree {
 	 * @param Less_Tree $a
 	 * @param Less_Tree $b
 	 * @return int|null
-	 * @see less-2.5.3.js#Node.compare
+	 * @see less-3.13.1.js#Node.compare
 	 */
 	public static function nodeCompare( $a, $b ) {
 		// Less_Tree subclasses that implement compare() are:
@@ -177,7 +141,7 @@ class Less_Tree {
 	 * @param string|float|int $a
 	 * @param string|float|int $b
 	 * @return int|null
-	 * @see less-2.5.3.js#Node.numericCompare
+	 * @see less-3.13.1.js#Node.numericCompare
 	 */
 	public static function numericCompare( $a, $b ) {
 		return $a < $b ? -1
@@ -192,7 +156,6 @@ class Less_Tree {
 	public static function ReferencedArray( $rules ) {
 		foreach ( $rules as $rule ) {
 			if ( method_exists( $rule, 'markReferenced' ) ) {
-				// @phan-suppress-next-line PhanUndeclaredMethod False positive
 				$rule->markReferenced();
 			}
 		}
