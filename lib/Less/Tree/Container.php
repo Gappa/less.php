@@ -1,25 +1,28 @@
 <?php
+declare( strict_types = 1 );
+
 /**
  * @private
  */
-class Less_Tree_Container extends Less_Tree {
+class Less_Tree_Container extends Less_Tree_AtRule {
 
+	/** @var Less_Tree_Value */
 	public $features;
-	public $rules;
-	public $index;
-	public $currentFileInfo;
-	public $isReferenced;
 
 	public function __construct( $value = [], $features = [], $index = null, $currentFileInfo = null ) {
 		$this->index = $index;
 		$this->currentFileInfo = $currentFileInfo;
 
 		$selectors = $this->emptySelectors();
-
 		$this->features = new Less_Tree_Value( $features );
-
 		$this->rules = [ new Less_Tree_Ruleset( $selectors, $value ) ];
 		$this->rules[0]->allowImports = true;
+
+		$this->allowRoot = true;
+	}
+
+	public function isRulesetLike() {
+		return true;
 	}
 
 	public function accept( $visitor ) {
@@ -27,13 +30,11 @@ class Less_Tree_Container extends Less_Tree {
 		$this->rules = $visitor->visitArray( $this->rules );
 	}
 
-	/**
-	 * @see Less_Tree::genCSS
-	 */
-	public function genCSS( $output ) {
+	public function genCSS( ?Less_Environment $context, $output ) {
 		$output->add( '@container ', $this->currentFileInfo, $this->index );
-		$this->features->genCSS( $output );
-		Less_Tree::outputRuleset( $output, $this->rules );
+		$this->features->genCSS( $context, $output );
+		'@phan-var Less_Environment $context';
+		self::outputRuleset( $context, $output, $this->rules );
 	}
 
 	/**
@@ -134,7 +135,7 @@ class Less_Tree_Container extends Less_Tree {
 		foreach ( $permuted as $path ) {
 
 			for ( $i = 0, $len = count( $path ); $i < $len; $i++ ) {
-				$path[$i] = Less_Parser::is_method( $path[$i], 'toCSS' ) ? $path[$i] : new Less_Tree_Anonymous( $path[$i] );
+				$path[$i] = $path[$i] instanceof Less_Tree ? $path[$i] : new Less_Tree_Anonymous( $path[$i] );
 			}
 
 			for ( $i = count( $path ) - 1; $i > 0; $i-- ) {
