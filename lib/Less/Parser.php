@@ -1321,7 +1321,8 @@ class Less_Parser {
 	private function parseEntitiesCall() {
 		$index = $this->pos;
 
-		if ( $this->peekReg( '/\\Gurl\(/i' ) ) {
+		// Optimization: Peek the "(" char first to avoid regex matching in the hot path
+		if ( ( $this->input[ $this->pos + 3 ] ?? null ) === '(' && $this->peekReg( '/\\Gurl\(/i' ) ) {
 			return;
 		}
 
@@ -3285,7 +3286,12 @@ class Less_Parser {
 			if ( $e ) {
 				$entities[] = $e;
 				// operations do not allow keyword "/" dimension (e.g. small/20px) so we support that here
-				if ( !$this->peekReg( '/\\G\/[\/*]/' ) ) {
+				// Optimization: Peek two chars directly to avoid unlikely regex in hot path
+				if ( !(
+					$this->input_len > ( $this->pos + 1 )
+					&& $this->input[$this->pos] === '/'
+					&& ( $this->input[$this->pos + 1] === '/' || $this->input[$this->pos + 1] === '*' )
+				) ) {
 					$delim = $this->matchChar( '/' );
 					if ( $delim ) {
 						$entities[] = new Less_Tree_Anonymous( $delim, $index );
